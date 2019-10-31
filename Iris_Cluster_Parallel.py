@@ -8,9 +8,9 @@ from statsmodels.stats.diagnostic import kstest_normal
 from statsmodels.stats.stattools import jarque_bera
 import numpy as np
 import multiprocessing
-import time
 from os import getpid
 import time
+from prettytable import PrettyTable
 
 
 def fisher_iris():
@@ -19,6 +19,21 @@ def fisher_iris():
     data = fishers_iris[0]
     marks = fishers_iris[1]
     return data, marks
+
+
+def iris_sep(iris, k):
+    # Разделение выборки ирисов на части по количеству процессов
+    separators = np.arange(0, k + 1)
+    iris_final = []
+    for sep_num in range(k):
+        iris_final.append(iris[int(round(separators[sep_num] * 150 / k, 0)):int(round(separators[sep_num + 1] * 150 / k, 0))])
+    return iris_final
+
+
+def base_matrix(row_num):
+    # Генерация нулевой матрицы указанного размера
+    print('Генерация нулевой матрицы...')
+    return np.zeros((row_num * 10 ** 5, 5))
 
 
 def population_gen(matrix, iris):
@@ -34,27 +49,6 @@ def population_gen(matrix, iris):
     return population
 
 
-def base_matrix(row_num):
-    # Генерация нулевой матрицы указанного размера
-    print('Генерация нулевой матрицы...')
-    return np.zeros((row_num * 10 ** 5, 5))
-
-
-def iris_sep(iris, k):
-    # Разделение выборки ирисов на части по количеству процессов
-    separators = np.arange(0, k + 1)
-    iris_final = []
-    for sep_num in range(k):
-        iris_final.append(iris[int(round(separators[sep_num] * 150 / k, 0)):int(round(separators[sep_num + 1] * 150 / k, 0))])
-    return iris_final
-
-
-def data_save(general_pop):
-    # Сохранение генеральной совокупности в txt-файл
-    output = open('output.txt', 'w')
-    output.write('\n'.join(general_pop))
-
-
 def sample_gen(population, ests, procs):
     # генерация подвыборок на данных каждого процесса
     print('Генерация выборок...')
@@ -66,17 +60,6 @@ def sample_gen(population, ests, procs):
             sam = np.vstack((sam, population[np.random.randint(0, rand_high)]))
         sample_list.append(sam)
     return sample_list
-
-
-def make_all(data, queue, ests, procs):
-    # Функция потоков, выполняет функции, необходимые для генерации
-    print('Начало обработки ирисов...')
-    zero_matrix = base_matrix(len(data))
-    population = population_gen(zero_matrix, data)
-    sample_list = sample_gen(population, ests, procs)
-    queue.put(sample_list)
-    print(queue.qsize())
-    print('Завершается работа процесса ' + str(getpid()))
 
 
 def get_total_sample_data(procs, ests, total_samples):
@@ -100,13 +83,29 @@ def get_silhouette_list(total_data):
     return silhouette_list
 
 
+def data_save(general_pop):
+    # Сохранение генеральной совокупности в txt-файл
+    output = open('output.txt', 'w')
+    output.write('\n'.join(general_pop))
+
+
+def make_all(data, queue, ests, procs):
+    # Функция потоков, выполняет функции, необходимые для генерации
+    print('Начало обработки ирисов...')
+    zero_matrix = base_matrix(len(data))
+    population = population_gen(zero_matrix, data)
+    sample_list = sample_gen(population, ests, procs)
+    queue.put(sample_list)
+    print(queue.qsize())
+    print('Завершается работа процесса ' + str(getpid()))
+
+
 def main():
     procs = int(input("Напишите количество процессов, которые вы хотите использовать для обработки данных: "))
     ests = int(input("Напишите количество выборок, которое вы хотите сгенерировать для проведения кластеризации: "))
     iris, _ = fisher_iris()
     start_time = time.time()
-    numbers = np.arange(150).reshape((150, 1))
-    iris = np.hstack((numbers, iris))
+    iris = np.hstack((np.arange(150).reshape((150, 1)), iris))
     iris_samples = iris_sep(iris, procs)
     multiprocessing.set_start_method('fork')
     queue = multiprocessing.Queue()
@@ -125,10 +124,13 @@ def main():
     total_data = get_total_sample_data(procs, ests, total_samples)
     silhouette_list = get_silhouette_list(total_data)
     print('Список оценённых коэффициентов силуэта')
+    sil_time_start = time.time()
     print(silhouette_list)
+    print('Время кластеризации и расчёта коэффициентов силуэта для {0} процессов составило: {1}'.format(ests, sil_time_start - time.time()))
     print('Оценка нормальности распределения коэффициентов силуэта')
     print('Тест Харке-Бера')
     print(jarque_bera(silhouette_list))
+    PrettyTable
     print('Тест Колмогорова-Смирнова')
     print(kstest_normal(silhouette_list, dist='norm', pvalmethod='approx'))
     # Объединение выборок из каждого потока, расчёт
