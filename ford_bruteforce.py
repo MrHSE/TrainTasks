@@ -11,7 +11,7 @@ def brute_forces(num_list, rows_dict, letters_list, words_list, n, const):
     results = []
     for index in num_list:
         if n == const:
-            print('Поиск значений выполнен на ' + str((index + 1) * 10) + ' процентов')
+            print('Поиск значений выполнен на ' + str((index) * 10) + ' процентов')
         if n > 0:
             rows_dict[letters_list[n]] = index
             brute_forces(num_list, rows_dict, letters_list, words_list, n - 1, const)
